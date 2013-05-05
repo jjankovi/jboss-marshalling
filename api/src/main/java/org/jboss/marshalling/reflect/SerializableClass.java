@@ -22,42 +22,31 @@
 
 package org.jboss.marshalling.reflect;
 
-import java.io.ObjectInput;
-import java.io.Serializable;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.Field;
-import java.lang.ref.WeakReference;
-import java.io.ObjectOutputStream;
-import java.io.ObjectInputStream;
 import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.ObjectStreamClass;
 import java.io.ObjectStreamException;
 import java.io.ObjectStreamField;
-import java.io.ObjectStreamClass;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import sun.reflect.ReflectionFactory;
 
 /**
  * Reflection information about a serializable class.  Intended for use by implementations of the Marshalling API.
  */
 public final class SerializableClass {
-    private static final ReflectionFactory reflectionFactory;
-
-    static {
-        reflectionFactory = AccessController.doPrivileged(new PrivilegedAction<ReflectionFactory>() {
-            public ReflectionFactory run() {
-                return ReflectionFactory.getReflectionFactory();
-            }
-        });
-    }
 
     private final WeakReference<Class<?>> subjectRef;
     private final LazyWeakMethodRef writeObject;
@@ -67,7 +56,6 @@ public final class SerializableClass {
     private final LazyWeakMethodRef readResolve;
     private final LazyWeakConstructorRef noArgConstructor;
     private final LazyWeakConstructorRef objectInputConstructor;
-    private final LazyWeakConstructorRef nonInitConstructor;
     private final SerializableField[] fields;
     private final long effectiveSerialVersionUID;
 
@@ -90,7 +78,6 @@ public final class SerializableClass {
         writeReplace = LazyWeakMethodRef.getInstance(WRITE_REPLACE_FINDER, subjectRef);
         readResolve = LazyWeakMethodRef.getInstance(READ_RESOLVE_FINDER, subjectRef);
         noArgConstructor = LazyWeakConstructorRef.getInstance(SIMPLE_CONSTRUCTOR_FINDER, subjectRef);
-        nonInitConstructor = LazyWeakConstructorRef.getInstance(NON_INIT_CONSTRUCTOR_FINDER, subjectRef);
         objectInputConstructor = LazyWeakConstructorRef.getInstance(OBJECT_INPUT_CONSTRUCTOR_FINDER, subjectRef);
         final ObjectStreamClass objectStreamClass = ObjectStreamClass.lookup(subject);
         effectiveSerialVersionUID = objectStreamClass == null ? 0L : objectStreamClass.getSerialVersionUID(); // todo find a better solution
@@ -393,24 +380,6 @@ public final class SerializableClass {
         return invokeConstructor(objectInputConstructor, objectInput);
     }
 
-    /**
-     * Determine whether this class has a non-init constructor.
-     *
-     * @return whether this class has a non-init constructor
-     */
-    public boolean hasNoInitConstructor() {
-        return nonInitConstructor != null;
-    }
-
-    /**
-     * Invoke the non-init constructor on this class.
-     *
-     * @return the new instance
-     */
-    public Object callNonInitConstructor() {
-        return invokeConstructorNoException(nonInitConstructor);
-    }
-
     private static Object invokeConstructor(LazyWeakConstructorRef ref, Object... args) throws IOException {
         try {
             return ref.getConstructor().newInstance(args);
@@ -419,27 +388,6 @@ public final class SerializableClass {
             if (te instanceof IOException) {
                 throw (IOException)te;
             } else if (te instanceof RuntimeException) {
-                throw (RuntimeException)te;
-            } else if (te instanceof Error) {
-                throw (Error)te;
-            } else {
-                throw new IllegalStateException("Unexpected exception", te);
-            }
-        } catch (ClassNotFoundException e) {
-            throw new IllegalStateException("Class is unexpectedly missing or changed");
-        } catch (InstantiationException e) {
-            throw new IllegalStateException("Instantiation failed unexpectedly");
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException("Constructor is unexpectedly inaccessible");
-        }
-    }
-
-    private static Object invokeConstructorNoException(LazyWeakConstructorRef ref, Object... args) {
-        try {
-            return ref.getConstructor().newInstance(args);
-        } catch (InvocationTargetException e) {
-            final Throwable te = e.getTargetException();
-            if (te instanceof RuntimeException) {
                 throw (RuntimeException)te;
             } else if (te instanceof Error) {
                 throw (Error)te;
@@ -565,15 +513,6 @@ public final class SerializableClass {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    <T> Constructor<T> getNoInitConstructor() {
-        try {
-            return (Constructor<T>) nonInitConstructor.getConstructor();
-        } catch (ClassNotFoundException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     private interface MethodFinder {
         Method get(Class<?> clazz);
     }
@@ -595,7 +534,7 @@ public final class SerializableClass {
         private final MethodFinder finder;
         private final WeakReference<Class<?>> classRef;
 
-        @SuppressWarnings("unchecked")
+       
         private static final AtomicReferenceFieldUpdater<LazyWeakMethodRef, WeakReference> refUpdater = AtomicReferenceFieldUpdater.newUpdater(LazyWeakMethodRef.class, WeakReference.class, "ref");
 
         private LazyWeakMethodRef(final MethodFinder finder, final Method initial, final WeakReference<Class<?>> classRef) {
@@ -646,7 +585,6 @@ public final class SerializableClass {
         private final ConstructorFinder finder;
         private final WeakReference<Class<?>> classRef;
 
-        @SuppressWarnings("unchecked")
         private static final AtomicReferenceFieldUpdater<LazyWeakConstructorRef, WeakReference> refUpdater = AtomicReferenceFieldUpdater.newUpdater(LazyWeakConstructorRef.class, WeakReference.class, "ref");
 
         private LazyWeakConstructorRef(final ConstructorFinder finder, final Constructor<?> initial, final WeakReference<Class<?>> classRef) {
@@ -703,7 +641,6 @@ public final class SerializableClass {
     private static final MethodFinder READ_RESOLVE_FINDER = new InheritableMethodFinder("readResolve");
     private static final ConstructorFinder SIMPLE_CONSTRUCTOR_FINDER = new PublicConstructorFinder();
     private static final ConstructorFinder OBJECT_INPUT_CONSTRUCTOR_FINDER = new PublicConstructorFinder(ObjectInput.class);
-    private static final ConstructorFinder NON_INIT_CONSTRUCTOR_FINDER = new NoInitConstructorFinder();
 
     private static final class PrivateMethodFinder implements MethodFinder {
         private final String name;
@@ -754,28 +691,6 @@ public final class SerializableClass {
 
         public <T> Constructor<T> get(final Class<T> clazz) {
             return lookupPublicConstructor(clazz, params);
-        }
-    }
-
-    private static final class NoInitConstructorFinder implements ConstructorFinder {
-
-        private NoInitConstructorFinder() {
-        }
-
-        @SuppressWarnings("unchecked")
-        public <T> Constructor<T> get(final Class<T> clazz) {
-            Class<? super T> current = clazz;
-            for (; Serializable.class.isAssignableFrom(current); current = current.getSuperclass());
-            final Constructor<? super T> topConstructor;
-            try {
-                topConstructor = current.getDeclaredConstructor();
-            } catch (NoSuchMethodException e) {
-                return null;
-            }
-            topConstructor.setAccessible(true);
-            final Constructor<T> generatedConstructor = (Constructor<T>) reflectionFactory.newConstructorForSerialization(clazz, topConstructor);
-            generatedConstructor.setAccessible(true);
-            return generatedConstructor;
         }
     }
 

@@ -22,19 +22,9 @@
 
 package org.jboss.marshalling.reflect;
 
-import java.lang.reflect.Constructor;
-
 /**
  * An object creator that uses methods only found in certain JVMs to create a new constructor if needed.
  */
 public class SunReflectiveCreator extends ReflectiveCreator {
 
-    private static SerializableClassRegistry registry = SerializableClassRegistry.getInstanceUnchecked();
-
-    /**
-     * {@inheritDoc}  This implementation will attempt to create a new constructor if one is not available.
-     */
-    protected <T> Constructor<T> getNewConstructor(final Class<T> clazz) {
-        return registry.lookup(clazz).getNoInitConstructor();
-    }
 }
