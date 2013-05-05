@@ -22,22 +22,23 @@
 
 package org.jboss.marshalling;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.EOFException;
-import java.io.OptionalDataException;
-import java.io.StreamCorruptedException;
-import java.io.Serializable;
-import java.io.ObjectOutput;
 import java.io.ObjectInput;
-import java.nio.ByteBuffer;
-import java.security.PrivilegedAction;
-import java.security.AccessController;
+import java.io.ObjectOutput;
+import java.io.OutputStream;
+import java.io.Serializable;
+import java.io.StreamCorruptedException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.ByteBuffer;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.ServiceLoader;
+
+import org.jboss.marshalling.util.CustomServiceLoader;
 
 /**
  * Static utility methods for simplifying use of marshallers.
@@ -63,7 +64,7 @@ public final class Marshalling {
      */
     @Deprecated
     public static MarshallerFactory getMarshallerFactory(String name) {
-        return loadMarshallerFactory(ServiceLoader.load(ProviderDescriptor.class), name);
+        return loadMarshallerFactory(CustomServiceLoader.load(ProviderDescriptor.class), name);
     }
 
     /**
@@ -77,7 +78,7 @@ public final class Marshalling {
      * @see ServiceLoader
      */
     public static MarshallerFactory getMarshallerFactory(String name, ClassLoader classLoader) {
-        return loadMarshallerFactory(ServiceLoader.load(ProviderDescriptor.class, classLoader), name);
+        return loadMarshallerFactory(CustomServiceLoader.load(ProviderDescriptor.class, classLoader), name);
     }
 
     /**
@@ -87,10 +88,10 @@ public final class Marshalling {
      * @return the marshaller factory, or {@code null} if no matching factory was found
      */
     public static MarshallerFactory getProvidedMarshallerFactory(String name) {
-        return loadMarshallerFactory(ServiceLoader.load(ProviderDescriptor.class, Marshalling.class.getClassLoader()), name);
+        return loadMarshallerFactory(CustomServiceLoader.load(ProviderDescriptor.class, Marshalling.class.getClassLoader()), name);
     }
 
-    private static MarshallerFactory loadMarshallerFactory(ServiceLoader<ProviderDescriptor> loader, String name) {
+    private static MarshallerFactory loadMarshallerFactory(CustomServiceLoader<ProviderDescriptor> loader, String name) {
         for (ProviderDescriptor descriptor : loader) {
             if (name.equals(descriptor.getName())) {
                 return descriptor.getMarshallerFactory();
@@ -338,50 +339,50 @@ public final class Marshalling {
     }
 
     /**
-     * Construct a new {@link java.io.OptionalDataException}.  This method is necssary because there are no
+     * Construct a new {@link java.io.MyOptionalDataException}.  This method is necssary because there are no
      * public constructors in the API.
      *
      * @param eof {@code true} if there is no more data in the buffered part of the stream
-     * @return a new OptionalDataException
+     * @return a new MyOptionalDataException
      */
-    public static OptionalDataException createOptionalDataException(boolean eof) {
-        final OptionalDataException optionalDataException = createOptionalDataException();
+    public static CustomOptionalDataException createOptionalDataException(boolean eof) {
+        final CustomOptionalDataException MyOptionalDataException = createMyOptionalDataException();
         final StackTraceElement[] stackTrace = new Throwable().getStackTrace();
         final StackTraceElement[] copyStackTrace = new StackTraceElement[stackTrace.length - 1];
         System.arraycopy(stackTrace, 1, copyStackTrace, 0, copyStackTrace.length);
-        optionalDataException.setStackTrace(copyStackTrace);
-        optionalDataException.eof = eof;
-        return optionalDataException;
+        MyOptionalDataException.setStackTrace(copyStackTrace);
+        MyOptionalDataException.eof = eof;
+        return MyOptionalDataException;
     }
 
     /**
-     * Construct a new {@link java.io.OptionalDataException}.  This method is necssary because there are no
+     * Construct a new {@link java.io.MyOptionalDataException}.  This method is necssary because there are no
      * public constructors in the API.
      *
      * @param length the number of bytes of primitive data available to be read in the current buffer
-     * @return a new OptionalDataException
+     * @return a new MyOptionalDataException
      */
-    public static OptionalDataException createOptionalDataException(int length) {
-        final OptionalDataException optionalDataException = createOptionalDataException();
-        optionalDataException.length = length;
-        return optionalDataException;
+    public static CustomOptionalDataException createOptionalDataException(int length) {
+        final CustomOptionalDataException MyOptionalDataException = createMyOptionalDataException();
+        MyOptionalDataException.length = length;
+        return MyOptionalDataException;
     }
 
-    private static OptionalDataException createOptionalDataException() {
+    private static CustomOptionalDataException createMyOptionalDataException() {
         return AccessController.doPrivileged(OPTIONAL_DATA_EXCEPTION_CREATE_ACTION);
     }
 
-    private static final OptionalDataExceptionCreateAction OPTIONAL_DATA_EXCEPTION_CREATE_ACTION = new OptionalDataExceptionCreateAction();
+    private static final MyOptionalDataExceptionCreateAction OPTIONAL_DATA_EXCEPTION_CREATE_ACTION = new MyOptionalDataExceptionCreateAction();
 
-    private static final class OptionalDataExceptionCreateAction implements PrivilegedAction<OptionalDataException> {
+    private static final class MyOptionalDataExceptionCreateAction implements PrivilegedAction<CustomOptionalDataException> {
 
-        private final Constructor<OptionalDataException> constructor;
+        private final Constructor<CustomOptionalDataException> constructor;
 
-        private OptionalDataExceptionCreateAction() {
-            constructor = AccessController.doPrivileged(new PrivilegedAction<Constructor<OptionalDataException>>() {
-                public Constructor<OptionalDataException> run() {
+        private MyOptionalDataExceptionCreateAction() {
+            constructor = AccessController.doPrivileged(new PrivilegedAction<Constructor<CustomOptionalDataException>>() {
+                public Constructor<CustomOptionalDataException> run() {
                     try {
-                        final Constructor<OptionalDataException> constructor = OptionalDataException.class.getDeclaredConstructor(boolean.class);
+                        final Constructor<CustomOptionalDataException> constructor = CustomOptionalDataException.class.getDeclaredConstructor(boolean.class);
                         constructor.setAccessible(true);
                         return constructor;
                     } catch (NoSuchMethodException e) {
@@ -391,7 +392,7 @@ public final class Marshalling {
             });
         }
 
-        public OptionalDataException run() {
+        public CustomOptionalDataException run() {
             try {
                 return constructor.newInstance(Boolean.FALSE);
             } catch (InstantiationException e) {
